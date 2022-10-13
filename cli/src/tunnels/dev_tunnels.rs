@@ -317,6 +317,7 @@ impl DevTunnels {
 	/// this attempts to reuse or generate a friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
 		&mut self,
+		name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
 		let (tunnel, persisted) = match self.launcher_tunnel.load() {
@@ -349,7 +350,7 @@ impl DevTunnels {
 			}
 			None => {
 				debug!(self.log, "No code server tunnel found, creating new one");
-				let name = self.get_name_for_tunnel(use_random_name).await?;
+				let name = self.get_name_for_tunnel(name, use_random_name).await?;
 				let (persisted, full_tunnel) = self.create_tunnel(&name).await?;
 				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
@@ -510,8 +511,8 @@ impl DevTunnels {
 		Ok(tunnels)
 	}
 
-	async fn get_name_for_tunnel(&mut self, use_random_name: bool) -> Result<String, AnyError> {
-		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
+	async fn get_name_for_tunnel(&mut self, name: Option<String>, use_random_name: bool) -> Result<String, AnyError> {
+
 
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
@@ -520,6 +521,16 @@ impl DevTunnels {
 				.any(|v| v.tags.iter().any(|t| t == n))
 		};
 
+		if let Some(machine_name) = name {
+			let mut name = machine_name;
+			if let Err(e) = is_valid_name(&name) {
+				info!(self.log, "{}", e);
+				return Err(e);
+			}
+
+		}
+
+		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
 		if use_random_name {
 			while !is_name_free(&placeholder_name) {
 				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);

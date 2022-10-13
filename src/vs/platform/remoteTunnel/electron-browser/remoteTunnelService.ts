@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTunnelAccount, IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { HOST_NAME_CONFIGURATION_KEY, IRemoteTunnelAccount, IRemoteTunnelService, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -17,6 +17,8 @@ import { isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+import { hostname } from 'os';
 
 
 type RemoteTunnelEnablementClassification = {
@@ -59,7 +61,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		const logFileUri = URI.file(join(dirname(environmentService.logsPath), 'remoteTunnel.log'));
@@ -117,7 +119,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this.setTunnelStatus(TunnelStatus.Disconnected);
 		}
 		if (this._tunnelProcess === loginProcess) {
-			const serveCommand = this.runCodeTunneCommand('tunnel', ['--random-name'], (message: string) => {
+			const serveCommand = this.runCodeTunneCommand('tunnel', ['--name', this.getHostName()], (message: string) => {
 			});
 			this._tunnelProcess = serveCommand;
 			serveCommand.finally(() => {
@@ -194,6 +196,14 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				});
 			});
 		});
+	}
+
+	private getHostName() {
+		const name = this.configurationService.getValue<string>(HOST_NAME_CONFIGURATION_KEY);
+		if (name && name.match(/^([\w-]+)$/)) {
+			return name;
+		}
+		return hostname();
 	}
 
 }
